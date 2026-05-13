@@ -8,6 +8,56 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500&family=IBM+Plex+Serif&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script>
+  /* ── Fichas (ficha_es) loader from repo CSVs ───────────── */
+  window.shellFichaPac = {};
+  window.shellFichaGol = {};
+  (function(){
+    function parseCSV(text){
+      var rows=[], row=[], field='', inQ=false, i=0, n=text.length, c;
+      while(i<n){
+        c=text.charAt(i);
+        if(inQ){
+          if(c==='"'){
+            if(i+1<n && text.charAt(i+1)==='"'){ field+='"'; i+=2; continue; }
+            inQ=false; i++; continue;
+          }
+          field+=c; i++; continue;
+        }
+        if(c==='"'){ inQ=true; i++; continue; }
+        if(c===','){ row.push(field); field=''; i++; continue; }
+        if(c==='\r'){ i++; continue; }
+        if(c==='\n'){ row.push(field); field=''; rows.push(row); row=[]; i++; continue; }
+        field+=c; i++;
+      }
+      if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+      return rows;
+    }
+    function toObjects(text){
+      var rows=parseCSV(text);
+      if(!rows.length) return [];
+      var h=rows[0], out=[];
+      for(var r=1;r<rows.length;r++){
+        if(rows[r].length===1 && rows[r][0]==='') continue;
+        var o={}; for(var k=0;k<h.length;k++) o[h[k]]=rows[r][k];
+        out.push(o);
+      }
+      return out;
+    }
+    function load(url, target, speciesKeys){
+      fetch(url).then(function(r){ return r.text(); }).then(function(t){
+        toObjects(t).forEach(function(o){
+          var name='';
+          for(var i=0;i<speciesKeys.length;i++){ if(o[speciesKeys[i]]){ name=o[speciesKeys[i]]; break; } }
+          if(!name) return;
+          target[name.toLowerCase()]=o.ficha_es||'';
+        });
+      }).catch(function(){});
+    }
+    load('procrustes_pacifico_fixed - procrustes_pacifico_fixed.csv', window.shellFichaPac, ['Species','species']);
+    load('species_shape_distances_gol - species_shape_distances_gol.csv', window.shellFichaGol, ['species','Species']);
+  })();
+  </script>
   <style>
     /* Palette: #8a716a sand | #c2b8b2 driftwood | #197bbd ocean | #125e8a deep | #204b57 abyss */
     *, *::before, *::after { box-sizing: border-box; }
@@ -748,10 +798,22 @@
       margin: 0.8rem 0 0;
       font-size: 0.7rem;
       line-height: 1.65;
-      color: #2b4452;
-      font-style: italic;
+      color: #c2b8b2;
       border-top: 1px solid #112028;
       padding-top: 0.75rem;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 6px;
+      text-align: justify;
+      white-space: pre-wrap;
+    }
+    .shell-card-desc.shell-card-placeholder {
+      color: #2b4452;
+      font-style: italic;
+    }
+    .shell-card-desc::-webkit-scrollbar { width: 6px; }
+    .shell-card-desc::-webkit-scrollbar-thumb {
+      background: #204b57; border-radius: 3px;
     }
 
     /* ── Contour explainer section ───────────────────────── */
@@ -1224,19 +1286,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <span class="shell-card-key">Distancia Procrustes</span>
         <span id="shell-card-dist">—</span>
       </div>
-      <div class="shell-card-row">
-        <span class="shell-card-key">Familia</span>
-        <span class="shell-card-placeholder">por agregar</span>
-      </div>
-      <div class="shell-card-row">
-        <span class="shell-card-key">Hábitat</span>
-        <span class="shell-card-placeholder">por agregar</span>
-      </div>
-      <div class="shell-card-row">
-        <span class="shell-card-key">Distribución</span>
-        <span class="shell-card-placeholder">por agregar</span>
-      </div>
-      <p class="shell-card-desc shell-card-placeholder">Descripción de la especie por agregar.</p>
+      <p class="shell-card-desc shell-card-placeholder" id="shell-card-ficha">Cargando ficha…</p>
     </div>
   </div>
 </div>
@@ -2790,7 +2840,19 @@ function buildDistChart(){
       color==='#197bbd' ? 'Pacífico' : 'Golfo de México';
     card.style.setProperty('--card-color', color);
 
-    var cardW=270, cardH=340;
+    var fichaEl=document.getElementById('shell-card-ficha');
+    var store=(color==='#197bbd') ? window.shellFichaPac : window.shellFichaGol;
+    var ficha=store && store[sp.toLowerCase()];
+    if(ficha){
+      fichaEl.textContent=ficha;
+      fichaEl.classList.remove('shell-card-placeholder');
+    } else {
+      fichaEl.textContent='Ficha no disponible para esta especie.';
+      fichaEl.classList.add('shell-card-placeholder');
+    }
+    fichaEl.scrollTop=0;
+
+    var cardW=270, cardH=520;
     var cx=event.clientX, cy=event.clientY;
     var x=cx+24;
     if(x+cardW>window.innerWidth-10) x=cx-cardW-24;
