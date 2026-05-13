@@ -12,6 +12,8 @@
   /* ── Fichas (ficha_es) loader from repo CSVs ───────────── */
   window.shellFichaPac = {};
   window.shellFichaGol = {};
+  window.shellNeighborsPac = {};
+  window.shellNeighborsGol = {};
   (function(){
     function parseCSV(text){
       var rows=[], row=[], field='', inQ=false, i=0, n=text.length, c;
@@ -56,6 +58,26 @@
     }
     load('procrustes_pacifico_fixed - procrustes_pacifico_fixed.csv', window.shellFichaPac, ['Species','species']);
     load('species_shape_distances_gol - species_shape_distances_gol.csv', window.shellFichaGol, ['species','Species']);
+
+    function loadNeighbors(url, target, k){
+      fetch(url).then(function(r){ return r.text(); }).then(function(t){
+        toObjects(t).forEach(function(o){
+          var name=o[k.sp]; if(!name) return;
+          target[name.toLowerCase()]={
+            closest:  { species:o[k.cs]||'', distance:parseFloat(o[k.cd])||0 },
+            furthest: { species:o[k.fs]||'', distance:parseFloat(o[k.fd])||0 }
+          };
+        });
+      }).catch(function(){});
+    }
+    loadNeighbors('procrustes_neighbors_pacifico.csv', window.shellNeighborsPac, {
+      sp:'Species', cs:'Closest_species',  cd:'Closest_distance',
+                    fs:'Furthest_species', fd:'Furthest_distance'
+    });
+    loadNeighbors('species_shape_distances.csv', window.shellNeighborsGol, {
+      sp:'species', cs:'closest_species',  cd:'distance_to_closest',
+                    fs:'furthest_species', fd:'distance_to_furthest'
+    });
   })();
   </script>
   <style>
@@ -819,6 +841,61 @@
     .shell-card-desc::-webkit-scrollbar-thumb {
       background: #204b57; border-radius: 3px;
     }
+    /* Closest / furthest neighbour columns */
+    .shell-card-neighbors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-top: 0.85rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #112028;
+    }
+    .shell-card-neighbor {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.32rem;
+      text-align: center;
+      min-width: 0;
+    }
+    .shell-card-neighbor-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #8a9bb0;
+    }
+    .shell-card-neighbor-img-box {
+      width: 100%;
+      height: 78px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid #112028;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .shell-card-neighbor-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .shell-card-neighbor-name {
+      font-size: 0.66rem;
+      font-style: italic;
+      color: #e8ddd8;
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .shell-card-neighbor-dist {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .shell-card-neighbor--close .shell-card-neighbor-dist { color: #4ade80; }
+    .shell-card-neighbor--far   .shell-card-neighbor-dist { color: #f472b6; }
 
     /* ── Contour explainer section ───────────────────────── */
     #story-contour {
@@ -1297,6 +1374,24 @@ document.addEventListener('DOMContentLoaded', function(){
         <span id="shell-card-dist">—</span>
       </div>
       <p class="shell-card-desc shell-card-placeholder" id="shell-card-ficha">Cargando ficha…</p>
+      <div class="shell-card-neighbors">
+        <div class="shell-card-neighbor shell-card-neighbor--close">
+          <div class="shell-card-neighbor-label">Más cercana</div>
+          <div class="shell-card-neighbor-img-box">
+            <img class="shell-card-neighbor-img" id="shell-card-close-img" alt=""/>
+          </div>
+          <div class="shell-card-neighbor-name" id="shell-card-close-name">—</div>
+          <div class="shell-card-neighbor-dist" id="shell-card-close-dist">—</div>
+        </div>
+        <div class="shell-card-neighbor shell-card-neighbor--far">
+          <div class="shell-card-neighbor-label">Más lejana</div>
+          <div class="shell-card-neighbor-img-box">
+            <img class="shell-card-neighbor-img" id="shell-card-far-img" alt=""/>
+          </div>
+          <div class="shell-card-neighbor-name" id="shell-card-far-name">—</div>
+          <div class="shell-card-neighbor-dist" id="shell-card-far-dist">—</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2890,7 +2985,41 @@ function buildDistChart(){
     }
     fichaEl.scrollTop=0;
 
-    var cardW=270, cardH=520;
+    // Closest / furthest neighbour
+    var nbStore=(color==='#197bbd') ? window.shellNeighborsPac : window.shellNeighborsGol;
+    var nb=nbStore && nbStore[sp.toLowerCase()];
+    function fillNeighbor(prefix, info){
+      var imgEl  = document.getElementById('shell-card-'+prefix+'-img');
+      var nameEl = document.getElementById('shell-card-'+prefix+'-name');
+      var distEl = document.getElementById('shell-card-'+prefix+'-dist');
+      if(info && info.species){
+        var pretty=info.species.replace(/_/g,' ');
+        nameEl.textContent=pretty;
+        distEl.textContent=info.distance.toFixed(4);
+        // Try Gulf folder first; fall back to Pacific folder, then hide.
+        imgEl.onerror=function(){
+          if(imgEl.dataset.fallback!=='1'){
+            imgEl.dataset.fallback='1';
+            imgEl.src='conchas_png_y/'+info.species+'.png';
+          } else {
+            imgEl.onerror=null; imgEl.style.visibility='hidden';
+          }
+        };
+        imgEl.style.visibility='visible';
+        imgEl.dataset.fallback='0';
+        imgEl.src='images/'+info.species+'.png';
+        imgEl.alt=pretty;
+      } else {
+        nameEl.textContent='—';
+        distEl.textContent='—';
+        imgEl.removeAttribute('src');
+        imgEl.style.visibility='hidden';
+      }
+    }
+    fillNeighbor('close', nb && nb.closest);
+    fillNeighbor('far',   nb && nb.furthest);
+
+    var cardW=270, cardH=640;
     var cx=event.clientX, cy=event.clientY;
     var x=cx+24;
     if(x+cardW>window.innerWidth-10) x=cx-cardW-24;
