@@ -394,12 +394,9 @@
     .toggle-btn:hover { border-color: #197bbd; color: #197bbd; }
     .toggle-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
-    /* Database ↔ visualization swap */
-    body.show-viz #explorer-header,
-    body.show-viz #grid,
-    body.show-viz #search,
-    body.show-viz #count,
-    body.show-viz #view-toggle { display: none; }
+    /* Database ↔ visualization swap (mutually exclusive views) */
+    body.mode-grid #dist-driver { display: none; }
+    body.mode-viz  #explorer    { display: none; }
 
     /* Photo mode: hide SVG, show img */
     .card-img {
@@ -1270,6 +1267,12 @@ document.addEventListener('DOMContentLoaded', function(){
       <button id="dist-zo" title="Alejar">−</button>
       <button id="dist-photo-btn" class="active" role="switch" aria-checked="true" title="Alternar contorno / fotografía"></button>
       <span id="dist-view-label">fotografía</span>
+      <button class="toggle-btn" id="data-toggle-viz" title="Ver cuadrícula">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        <span>Ver cuadrícula</span>
+      </button>
     </div>
     <div id="dist-wrap">
       <div id="dist-leg-pac">Pacífico · 154 sp.</div>
@@ -2287,23 +2290,27 @@ document.addEventListener('DOMContentLoaded', function(){
       : '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>';
   });
 
-  // ── Data toggle: grid ↔ visualization ─────────────────
-  const dataToggle    = document.getElementById('data-toggle');
-  const dataToggleLbl = document.getElementById('data-toggle-label');
-  let   vizMode = false;
+  // ── Data toggle: graphic ↔ grid (mutually exclusive) ──
+  // Two buttons stay in sync: one on the graphic (#data-toggle-viz)
+  // shown only in viz mode, one in the grid (#data-toggle) shown only
+  // in grid mode. Clicking either swaps which view is visible.
+  const dataToggleGrid = document.getElementById('data-toggle');     // sits in #controls — visible in grid mode
+  const dataToggleViz  = document.getElementById('data-toggle-viz'); // sits in #dist-ctrl — visible in viz mode
 
-  dataToggle.addEventListener('click', () => {
-    vizMode = !vizMode;
-    document.body.classList.toggle('show-viz', vizMode);
-    dataToggleLbl.textContent = vizMode ? 'Ver cuadrícula' : 'Ver visualización';
-    dataToggle.querySelector('svg').innerHTML = vizMode
-      ? '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'
-      : '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>';
-    const target = vizMode
+  function setMode(mode) {
+    document.body.classList.toggle('mode-viz',  mode === 'viz');
+    document.body.classList.toggle('mode-grid', mode === 'grid');
+    const target = mode === 'viz'
       ? document.getElementById('dist-driver')
       : document.getElementById('explorer');
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  }
+
+  dataToggleViz .addEventListener('click', () => setMode('grid'));
+  dataToggleGrid.addEventListener('click', () => setMode('viz'));
+
+  // Initial state: show the graphic, hide the grid
+  document.body.classList.add('mode-viz');
 </script>
 
 <div id="orbit-overlay">
