@@ -394,6 +394,10 @@
     .toggle-btn:hover { border-color: #197bbd; color: #197bbd; }
     .toggle-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+    /* Database ↔ visualization swap */
+    body.show-viz #explorer-header,
+    body.show-viz #grid { display: none; }
+
     /* Photo mode: hide SVG, show img */
     .card-img {
       display: none;
@@ -1309,6 +1313,12 @@ document.addEventListener('DOMContentLoaded', function(){
       <circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
     </svg>
     <span id="toggle-label">Ver contornos</span>
+  </button>
+  <button class="toggle-btn" id="data-toggle" title="Cambiar entre cuadrícula y visualización">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+    <span id="data-toggle-label">Ver visualización</span>
   </button>
 </div>
 
@@ -2272,6 +2282,24 @@ document.addEventListener('DOMContentLoaded', function(){
     toggleBtn.querySelector('svg').innerHTML = photoMode
       ? '<circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>'
       : '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>';
+  });
+
+  // ── Data toggle: grid ↔ visualization ─────────────────
+  const dataToggle    = document.getElementById('data-toggle');
+  const dataToggleLbl = document.getElementById('data-toggle-label');
+  let   vizMode = false;
+
+  dataToggle.addEventListener('click', () => {
+    vizMode = !vizMode;
+    document.body.classList.toggle('show-viz', vizMode);
+    dataToggleLbl.textContent = vizMode ? 'Ver cuadrícula' : 'Ver visualización';
+    dataToggle.querySelector('svg').innerHTML = vizMode
+      ? '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'
+      : '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>';
+    const target = vizMode
+      ? document.getElementById('dist-driver')
+      : document.getElementById('explorer');
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 </script>
 
