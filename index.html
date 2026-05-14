@@ -735,11 +735,20 @@
     }
     #dist-leg-pac  { left: calc(50% - 235px); transform: translateX(-50%); color: #197bbd; }
     #dist-leg-gulf { left: calc(50% + 235px); transform: translateX(-50%); color: #c2b8b2; }
-    /* Helix contour / photo toggle */
-    #dist-wrap svg .shell-img   { display:none; }
-    #dist-wrap svg .shell-contour { display:inline; }
-    #dist-wrap svg.photo-mode .shell-contour { display:none; }
-    #dist-wrap svg.photo-mode .shell-img     { display:inline; }
+    /* Helix contour / photo toggle (opacity-based so we can fade) */
+    #dist-wrap svg .shell-img,
+    #dist-wrap svg .shell-contour { transition: opacity .4s ease; }
+    /* Default (contour mode): contour visible, image hidden */
+    #dist-wrap svg .shell-img     { opacity: 0; pointer-events: none; }
+    #dist-wrap svg .shell-contour { opacity: 1; }
+    /* Photo mode: image visible, contour hidden */
+    #dist-wrap svg.photo-mode .shell-img     { opacity: 0.88; }
+    #dist-wrap svg.photo-mode .shell-contour { opacity: 0; }
+    /* Per-shell flip override (after 2s hover) — swaps the two layers */
+    #dist-wrap svg.photo-mode .shell-img.flipped     { opacity: 0; }
+    #dist-wrap svg.photo-mode .shell-contour.flipped { opacity: 1; }
+    #dist-wrap svg .shell-img.flipped     { opacity: 0.88; }
+    #dist-wrap svg .shell-contour.flipped { opacity: 0; }
     /* Shell info card */
     #shell-card {
       position: fixed;
@@ -3035,9 +3044,20 @@ function buildDistChart(){
 
     card.classList.add('is-open');
   }
+  var cardEl=document.getElementById('shell-card');
   document.getElementById('shell-card-close').addEventListener('click',function(){
-    document.getElementById('shell-card').classList.remove('is-open');
+    cardEl.classList.remove('is-open');
   });
+
+  /* Card auto-hide: cancelled while pointer is on a shell or on the card. */
+  var cardHideTimer=null;
+  function scheduleCardHide(){
+    clearTimeout(cardHideTimer);
+    cardHideTimer=setTimeout(function(){ cardEl.classList.remove('is-open'); }, 250);
+  }
+  function cancelCardHide(){ clearTimeout(cardHideTimer); }
+  cardEl.addEventListener('mouseenter', cancelCardHide);
+  cardEl.addEventListener('mouseleave', scheduleCardHide);
 
   function drawSeries(data, cx, color, outerDir, innerBound){
     var PAD=3;
@@ -3069,10 +3089,12 @@ function buildDistChart(){
         .attr('cursor','pointer')
         .on('mouseenter',function(e){
           if(wrapEl.classList.contains('panning')) return;
+          cancelCardHide();
           dot.transition().duration(120).attr('r',7).attr('opacity',1);
           openCard(sp,dist,color,e);
         })
         .on('mouseleave',function(){
+          scheduleCardHide();
           dot.transition().duration(180).attr('r',3).attr('opacity',0.88);
         });
       dot.append('title').text(sp.replace(/_/g,' ')+'  d='+dist.toFixed(4));
@@ -3112,48 +3134,57 @@ function buildDistChart(){
         }
         placed.push({x1:shellCX-sw/2-PAD,y1:by1,x2:shellCX+sw/2+PAD,y2:by2});
 
+        var flipTimer=null;
+        var contourSvg, imageSel;
+        function startFlip(){
+          clearTimeout(flipTimer);
+          flipTimer=setTimeout(function(){
+            if(contourSvg) contourSvg.classed('flipped', true);
+            if(imageSel)   imageSel.classed('flipped', true);
+          }, 2000);
+        }
+        function cancelFlip(){
+          clearTimeout(flipTimer);
+          if(contourSvg) contourSvg.classed('flipped', false);
+          if(imageSel)   imageSel.classed('flipped', false);
+        }
+
         var gc=layerContours.append('g').attr('cursor','pointer')
           .on('mouseenter',function(e){
             if(wrapEl.classList.contains('panning')) return;
+            cancelCardHide();
             dot.transition().duration(120).attr('r',7).attr('opacity',1);
             openCard(sp,dist,color,e);
+            startFlip();
           })
           .on('mouseleave',function(){
+            scheduleCardHide();
             dot.transition().duration(180).attr('r',3).attr('opacity',0.88);
+            cancelFlip();
           });
         gc.append('title').text(sp.replace(/_/g,' '));
-        /* Invisible hit rect — full bounding box is clickable, not just the stroke. */
+        /* Invisible hit rect — full bounding box is hoverable, not just the stroke. */
         gc.append('rect')
           .attr('x',shellCX-sw/2).attr('y',shellCY)
           .attr('width',sw).attr('height',SH)
           .attr('fill','none').attr('pointer-events','all');
-        gc.append('svg')
+        contourSvg=gc.append('svg')
           .attr('class','shell-contour')
           .attr('x',shellCX-sw/2).attr('y',shellCY)
           .attr('width',sw).attr('height',SH)
           .attr('viewBox',sh.vb)
-          .attr('preserveAspectRatio','xMidYMid meet')
-          .append('path')
-            .attr('d',sh.d).attr('fill','none')
-            .attr('stroke',color).attr('stroke-width',strokeW).attr('opacity',0.55);
+          .attr('preserveAspectRatio','xMidYMid meet');
+        contourSvg.append('path')
+          .attr('d',sh.d).attr('fill','none')
+          .attr('stroke',color).attr('stroke-width',strokeW).attr('opacity',0.55);
 
-        layerImages.append('image')
+        imageSel=layerImages.append('image')
           .attr('class','shell-img')
           .attr('href','images/'+sp+'.png')
           .attr('x',shellCX-sw/2).attr('y',shellCY)
           .attr('width',sw).attr('height',SH)
           .attr('preserveAspectRatio','xMidYMid meet')
-          .attr('opacity',0.88)
-          .attr('cursor','pointer')
-          .attr('pointer-events','all')
-          .on('mouseenter',function(e){
-            if(wrapEl.classList.contains('panning')) return;
-            dot.transition().duration(120).attr('r',7).attr('opacity',1);
-            openCard(sp,dist,color,e);
-          })
-          .on('mouseleave',function(){
-            dot.transition().duration(180).attr('r',3).attr('opacity',0.88);
-          })
+          .attr('pointer-events','none')
           .on('error',function(){
             var alt='conchas_png_y/'+sp+'.png';
             if(this.getAttribute('href')!==alt) this.setAttribute('href',alt);
